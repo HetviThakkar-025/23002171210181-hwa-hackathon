@@ -672,3 +672,77 @@ td { color: var(--ink); }
   .sim-controls { position: static; top: auto; }
   .sim-hero { padding: 40px 0 24px; }
 }
+
+/* ===== Cart page ===== */
+.cart-page {
+  padding: 48px 0 60px;
+}
+.cart-page .hero-kicker {
+  display: block;
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+  margin-bottom: 8px;
+}
+.cart-page h1 { font-size: clamp(2rem, 5vw, 3rem); margin-bottom: 8px; }
+.cart-page table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 0.95rem; }
+.cart-page th, .cart-page td { text-align: left; border-bottom: 1px solid var(--border); padding: 12px 8px; font-family: "Courier New", monospace; }
+.cart-page th { color: var(--ink-dim); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; }
+.cart-page td.num { text-align: right; }
+.cart-page td { color: var(--ink); }
+
+.qty-control { display: flex; align-items: center; gap: 6px; }
+.qty-btn {
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--ink);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Courier New", monospace;
+  font-weight: 700;
+  font-size: 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+.qty-btn:hover { background: var(--ink); color: #fff; }
+.qty-val { min-width: 24px; text-align: center; font-weight: 700; color: var(--ink); }
+.btn-remove {
+  border: 2px solid var(--ink-dim);
+  background: transparent;
+  color: var(--ink-dim);
+  font-family: "Courier New", monospace;
+  font-weight: 700;
+  font-size: 0.8rem;
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.btn-remove:hover { background: var(--ink-dim); color: #fff; }
+
+.empty-cart { text-align: center; padding: 60px 20px; color: var(--ink-dim); }
+.empty-cart p { margin-bottom: 16px; }
+
+.cart-summary {
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  background: var(--panel);
+  margin-top: 32px;
+}
+.summary-row { display: flex; justify-content: space-between; margin: 10px 0; font-size: 0.95rem; color: var(--ink); }
+.summary-row.total { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-weight: 700; font-size: 1.1rem; }
+.summary-row .num { font-family: "Courier New", monospace; font-weight: 700; }
+.btn-full { width: 100%; margin-top: 16px; }
+.checkout-note { font-size: 0.8rem; color: var(--ink-dim); margin-top: 10px; text-align: center; }
+
+.nav-cart-active { color: var(--ink); border-color: var(--ink); }
+
+@media (max-width: 768px) {
+  .cart-page { padding: 36px 0 48px; }
+  .cart-page table { font-size: 0.85rem; }
+  .cart-page th, .cart-page td { padding: 10px 6px; }
+  .qty-btn { width: 28px; height: 28px; font-size: 0.9rem; }
+}

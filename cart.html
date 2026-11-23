@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cart — Maybe Box</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="index.html" class="brand">Maybe <span class="brand-accent">Box</span></a>
+    <nav class="nav" id="main-nav">
+      <a href="index.html" class="nav-link">Home</a>
+      <a href="product.html" class="nav-link">The Box</a>
+      <a href="how-it-works.html" class="nav-link">How it works</a>
+      <a href="order.html" class="nav-link nav-order">Order</a>
+    </nav>
+    <a href="cart.html" class="nav-cart nav-cart-active" aria-label="Cart">
+      Cart <span class="cart-count" id="cart-count">0</span>
+    </a>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Open menu">
+      <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <section class="cart-page" aria-label="Shopping cart">
+    <div class="container">
+      <span class="hero-kicker">Cart</span>
+      <h1>Your cart<span class="accent"> </span></h1>
+
+      <div id="cart-empty" class="empty-cart">
+        <p>Your cart is empty.</p>
+        <p>Add a Maybe Box and a spare peg set to get started.</p>
+        <a href="product.html" class="btn btn-primary">Go to The Box</a>
+      </div>
+
+      <div id="cart-items" class="cart-items" style="display:none;">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Size</th>
+              <th class="num">Unit price</th>
+              <th class="num">Qty</th>
+              <th class="num">Line total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="cart-list"></tbody>
+        </table>
+      </div>
+
+      <div id="cart-summary" class="cart-summary" style="display:none;">
+        <div class="summary-row">
+          <span>Subtotal</span>
+          <span class="num" id="sum-subtotal">$0.00</span>
+        </div>
+        <div class="summary-row">
+          <span>Shipping</span>
+          <span class="num" id="sum-shipping">$0.00</span>
+        </div>
+        <div class="summary-row total">
+          <span>Total</span>
+          <span class="num" id="sum-total">$0.00</span>
+        </div>
+        <button type="button" class="btn btn-primary btn-full" id="btn-checkout">Proceed to Checkout</button>
+        <p class="checkout-note">Checkout page coming soon.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">Maybe <span class="brand-accent">Box</span></div>
+    <p class="footer-tagline">A little chance. A lot of joy.</p>
+    <div class="footer-nav">
+      <a href="index.html">Home</a>
+      <a href="product.html">The Box</a>
+      <a href="how-it-works.html">How it works</a>
+      <a href="order.html">Order</a>
+    </div>
+    <div class="footer-note">Battery-free. App-free. Workshop-made.</div>
+  </div>
+</footer>
+
+<script src="js/main.js"></script>
+<script>
+  (function () {
+    "use strict";
+
+    var CART_KEY = "maybe_box_cart";
+    var SHIPPING_FREE_THRESHOLD = 50;
+    var SHIPPING_FLAT = 5;
+
+    var cartEmpty = document.getElementById("cart-empty");
+    var cartItems = document.getElementById("cart-items");
+    var cartSummary = document.getElementById("cart-summary");
+    var cartList = document.getElementById("cart-list");
+    var sumSubtotal = document.getElementById("sum-subtotal");
+    var sumShipping = document.getElementById("sum-shipping");
+    var sumTotal = document.getElementById("sum-total");
+    var btnCheckout = document.getElementById("btn-checkout");
+
+    function money(n) {
+      return "$" + n.toFixed(2);
+    }
+
+    function sizeOf(item) {
+      var id = (item.id || "").toLowerCase();
+      var name = (item.name || "").toLowerCase();
+      if (id.indexOf("mini") !== -1 || name.indexOf("mini") !== -1) return "Mini";
+      if (id.indexOf("standard") !== -1 || name.indexOf("standard") !== -1) return "Standard";
+      return "\u2014";
+    }
+
+    function loadCart() {
+      try { return JSON.parse(localStorage.getItem(CART_KEY) || "[]"); } catch (e) { return []; }
+    }
+    function saveCart(cart) {
+      try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {}
+    }
+
+    function render() {
+      var cart = loadCart();
+
+      // header count
+      if (window.maybeBox && typeof window.maybeBox.updateCartCount === "function") {
+        window.maybeBox.updateCartCount();
+      }
+
+      if (!cart || cart.length === 0) {
+        cartEmpty.style.display = "block";
+        cartItems.style.display = "none";
+        cartSummary.style.display = "none";
+        return;
+      }
+
+      cartEmpty.style.display = "none";
+      cartItems.style.display = "block";
+      cartSummary.style.display = "block";
+
+      cartList.innerHTML = "";
+      var subtotal = 0;
+
+      cart.forEach(function (item, index) {
+        var qty = item.qty || 1;
+        var price = item.price || 0;
+        var line = price * qty;
+        subtotal += line;
+
+        var tr = document.createElement("tr");
+
+        var nameTd = document.createElement("td");
+        nameTd.textContent = item.name;
+        tr.appendChild(nameTd);
+
+        var sizeTd = document.createElement("td");
+        sizeTd.textContent = sizeOf(item);
+        tr.appendChild(sizeTd);
+
+        var priceTd = document.createElement("td");
+        priceTd.className = "num";
+        priceTd.textContent = money(price);
+        tr.appendChild(priceTd);
+
+        var qtyTd = document.createElement("td");
+        qtyTd.className = "num";
+        var qtyWrap = document.createElement("div");
+        qtyWrap.className = "qty-control";
+        var btnDec = document.createElement("button");
+        btnDec.type = "button";
+        btnDec.className = "qty-btn";
+        btnDec.textContent = "\u2013";
+        var qtyVal = document.createElement("span");
+        qtyVal.className = "qty-val";
+        qtyVal.textContent = qty;
+        var btnInc = document.createElement("button");
+        btnInc.type = "button";
+        btnInc.className = "qty-btn";
+        btnInc.textContent = "\u2019";
+        qtyWrap.appendChild(btnDec);
+        qtyWrap.appendChild(qtyVal);
+        qtyWrap.appendChild(btnInc);
+        qtyTd.appendChild(qtyWrap);
+        tr.appendChild(qtyTd);
+
+        var lineTd = document.createElement("td");
+        lineTd.className = "num";
+        lineTd.textContent = money(line);
+        tr.appendChild(lineTd);
+
+        var remTd = document.createElement("td");
+        var btnRem = document.createElement("button");
+        btnRem.type = "button";
+        btnRem.className = "btn-remove";
+        btnRem.textContent = "Remove";
+        remTd.appendChild(btnRem);
+        tr.appendChild(remTd);
+
+        cartList.appendChild(tr);
+
+        btnDec.addEventListener("click", function () {
+          if (qty > 1) {
+            item.qty = qty - 1;
+            saveCart(cart);
+            render();
+          }
+        });
+
+        btnInc.addEventListener("click", function () {
+          item.qty = qty + 1;
+          saveCart(cart);
+          render();
+        });
+
+        btnRem.addEventListener("click", function () {
+          cart.splice(index, 1);
+          saveCart(cart);
+          render();
+        });
+      });
+
+      var shipping = subtotal >= SHIPPING_FREE_THRESHOLD ? 0 : SHIPPING_FLAT;
+      var total = subtotal + shipping;
+
+      sumSubtotal.textContent = money(subtotal);
+      sumShipping.textContent = shipping === 0 ? "Free" : money(shipping);
+      sumTotal.textContent = money(total);
+    }
+
+    btnCheckout.addEventListener("click", function () {
+      window.location.href = "checkout.html";
+    });
+
+    render();
+  })();
+</script>
+</body>
+</html>
