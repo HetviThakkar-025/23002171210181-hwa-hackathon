@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How It Works — Maybe Box</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="index.html" class="brand">Maybe <span class="brand-accent">Box</span></a>
+    <nav class="nav" id="main-nav">
+      <a href="index.html" class="nav-link">Home</a>
+      <a href="product.html" class="nav-link">The Box</a>
+      <a href="how-it-works.html" class="nav-link active">How it works</a>
+      <a href="order.html" class="nav-link nav-order">Order</a>
+    </nav>
+    <a href="cart.html" class="nav-cart" aria-label="Cart">
+      Cart <span class="cart-count" id="cart-count">0</span>
+    </a>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Open menu">
+      <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <section class="sim-hero">
+    <div class="container">
+      <span class="hero-kicker">How it works</span>
+      <h1>Paddle. Pegs. Odds.<span class="accent"> </span></h1>
+      <p>Your dog pushes the paddle and releases one piece of kibble. It bounces down through a field of pegs, and the odds dial sets how often a piece lands in the reward tray.</p>
+    </div>
+  </section>
+
+  <section class="sim-wrap">
+    <div class="sim-board">
+      <canvas id="simCanvas"></canvas>
+      <div class="board-overlay">
+        <span class="board-label return">Return Lane</span>
+        <span class="board-label reward">Reward Tray</span>
+      </div>
+    </div>
+
+    <div class="sim-controls">
+      <h3>Odds dial</h3>
+      <div class="odds-group">
+        <button type="button" class="odds-btn active" data-odds="learn">Learn<span class="odds-note">rewards most pushes</span></button>
+        <button type="button" class="odds-btn" data-odds="play">Play<span class="odds-note">~ half the pushes</span></button>
+        <button type="button" class="odds-btn" data-odds="hunt">Hunt<span class="odds-note">rewards rarely</span></button>
+      </div>
+
+      <div class="counters">
+        <div class="counter"><span class="counter-value" id="stat-pushes">0</span><span class="counter-label">Pushes</span></div>
+        <div class="counter"><span class="counter-value reward" id="stat-rewards">0</span><span class="counter-label">Rewards</span></div>
+        <div class="counter"><span class="counter-value return" id="stat-returns">0</span><span class="counter-label">Returns</span></div>
+        <div class="counter"><span class="counter-value" id="stat-payout">0%</span><span class="counter-label">Payout</span></div>
+      </div>
+
+      <div class="btn-group">
+        <button type="button" class="btn btn-primary" id="btn-push">Push Paddle</button>
+        <button type="button" class="btn" id="btn-auto">Auto-run 20</button>
+        <button type="button" class="btn" id="btn-reset">Reset</button>
+      </div>
+
+      <p class="disclaimer">This simulation illustrates the mechanism (a Galton-style pegboard with an adjustable payout). It is not a measurement or guarantee of real dog behavior, and actual results will vary.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">Maybe <span class="brand-accent">Box</span></div>
+    <p class="footer-tagline">A little chance. A lot of joy.</p>
+    <div class="footer-nav">
+      <a href="index.html">Home</a>
+      <a href="product.html">The Box</a>
+      <a href="how-it-works.html">How it works</a>
+      <a href="order.html">Order</a>
+    </div>
+    <div class="footer-note">Battery-free. App-free. Workshop-made.</div>
+  </div>
+</footer>
+
+<script src="js/main.js"></script>
+<script src="js/simulation.js"></script>
+<script>
+  (function () {
+    "use strict";
+
+    var canvas = document.getElementById("simCanvas");
+    var ctx = canvas.getContext("2d");
+    var dpr = window.devicePixelRatio || 1;
+
+    var btnPush = document.getElementById("btn-push");
+    var btnAuto = document.getElementById("btn-auto");
+    var btnReset = document.getElementById("btn-reset");
+    var oddsBtns = document.querySelectorAll(".odds-btn");
+    var statPushes = document.getElementById("stat-pushes");
+    var statRewards = document.getElementById("stat-rewards");
+    var statReturns = document.getElementById("stat-returns");
+    var statPayout = document.getElementById("stat-payout");
+
+    var sim = window.maybeBoxSim;
+
+    // UI state
+    var anim = {
+      active: false,
+      path: null,
+      i: 0,
+      t: 0,
+      dur: 200,
+      last: 0,
+      reduced: false,
+      onEnd: null
+    };
+    var autoRemaining = 0;
+    var animating = false;
+
+    var trayLeftX, trayRightX, trayY;
+
+    function resize() {
+      var wrap = canvas.parentElement;
+      var w = wrap.clientWidth || 300;
+      var h = wrap.clientHeight || 520;
+      if (w < 260) w = 260;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      sim.configure({
+        originX: w / 2,
+        originY: 62,
+        rows: 8,
+        cols: 9,
+        colStep: Math.min(48, (w - 80) / 8),
+        rowStep: Math.min(44, (h - 130) / 9),
+        centerCol: 4
+      });
+
+      var cfg = sim.config();
+      var cs = cfg.colStep;
+      var rs = cfg.rowStep;
+      trayLeftX = sim.pegX(0, cfg.rows) - cs * 0.55;
+      trayRightX = sim.pegX(cfg.cols - 1, cfg.rows) + cs * 0.55;
+      trayY = sim.pegY(cfg.rows) + 18;
+
+      draw();
+    }
+
+    window.addEventListener("resize", resize);
+    window.addEventListener("load", resize);
+
+    // -------- drawing --------
+    function clear() {
+      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+    }
+
+    function drawDot(x, y, r, fill) {
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      if (fill !== ctx.strokeStyle) {
+        ctx.strokeStyle = "#5a533d";
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+      }
+    }
+
+    function drawBoard() {
+      var w = canvas.width / dpr;
+      var h = canvas.height / dpr;
+      var cfg = sim.config();
+      var rows = cfg.rows;
+      var cols = cfg.cols;
+      var cs = cfg.colStep;
+      var rs = cfg.rowStep;
+
+      // subtle dot-grid background
+      ctx.fillStyle = "#e8e4d8";
+      for (var gx = 0; gx < w; gx += 20) {
+        for (var gy = 0; gy < h; gy += 20) {
+          ctx.fillRect(gx + 1, gy + 1, 1.4, 1.4);
+        }
+      }
+
+      // hopper
+      var hopperW = cs * 2.2;
+      var hopperH = 26;
+      var hopperX = cfg.originX - hopperW / 2;
+      var hopperY = sim.originY - 40;
+      ctx.fillStyle = "#c9c1a8";
+      ctx.strokeStyle = "#6e654f";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(hopperX, hopperY, hopperW, hopperH, 6) : ctx.rect(hopperX, hopperY, hopperW, hopperH);
+      ctx.fill();
+      ctx.stroke();
+
+      // pegs (staggered rows)
+      for (var r = 0; r <= rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          var px = sim.pegX(c, r);
+          var py = sim.pegY(r);
+          // skip edge positions that fall outside the walkable columns at extreme rows
+          drawDot(px, py, 4, "#8a8168");
+        }
+      }
+
+      // exit trays
+      function drawTray(x, labelReward) {
+        ctx.fillStyle = "#c9c1a8";
+        ctx.strokeStyle = "#6e654f";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(x - cs * 0.6, trayY - 14, cs * 1.2, 30, 8) : ctx.rect(x - cs * 0.6, trayY - 14, cs * 1.2, 30);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = labelReward ? "#c97a1e" : "#6e654f";
+        ctx.font = "bold 11px 'Courier New', monospace";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(labelReward ? "REWARD" : "RETURN", x, trayY + 2);
+      }
+      drawTray(trayLeftX, false);
+      drawTray(trayRightX, true);
+    }
+
+    function drawBall(x, y) {
+      var r = 5;
+      ctx.fillStyle = "#f4a240";
+      ctx.strokeStyle = "#8a5a0f";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    function getBallPos() {
+      if (!anim.path || anim.path.length === 0)       return { x: cfg.originX, y: cfg.originY - 40 };
+      var p0 = anim.path[anim.i];
+      var p1 = anim.path[Math.min(anim.i + 1, anim.path.length - 1)];
+      var t = anim.t;
+      // ease out
+      var e = 1 - Math.pow(1 - t, 3);
+      return { x: p0.x + (p1.x - p0.x) * e, y: p0.y + (p1.y - p0.y) * e };
+    }
+
+    function draw() {
+      clear();
+      drawBoard();
+      var pos = getBallPos();
+      drawBall(pos.x, pos.y);
+    }
+
+    // -------- animation --------
+    function startAnim(path, onEnd) {
+      anim.path = path;
+      anim.i = 0;
+      anim.t = 0;
+      anim.active = true;
+      anim.onEnd = onEnd;
+      anim.reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      anim.last = null;
+      animating = true;
+      btnPush.disabled = true;
+      btnAuto.disabled = true;
+      btnReset.disabled = true;
+      oddsBtns.forEach(function (b) { b.disabled = true; });
+      requestAnimationFrame(animLoop);
+    }
+
+    function animLoop(now) {
+      if (!anim.active) return;
+      if (!anim.last) anim.last = now;
+      var dt = now - anim.last;
+      anim.last = now;
+
+      if (anim.reduced) {
+        anim.i = anim.path.length - 1;
+        anim.t = 1;
+        draw();
+        finishAnim();
+        return;
+      }
+
+      var step = dt / anim.dur;
+      anim.t += step;
+      if (anim.t >= 1) {
+        anim.t = 0;
+        anim.i += 1;
+        if (anim.i >= anim.path.length) {
+          finishAnim();
+          return;
+        }
+      }
+      draw();
+      requestAnimationFrame(animLoop);
+    }
+
+    function finishAnim() {
+      anim.active = false;
+      animating = false;
+      btnPush.disabled = false;
+      btnAuto.disabled = false;
+      btnReset.disabled = false;
+      oddsBtns.forEach(function (b) { b.disabled = false; });
+      updateCounters();
+      if (autoRemaining > 0) {
+        autoRemaining -= 1;
+        setTimeout(runAutoPush, 400);
+      } else if (anim.onEnd) {
+        anim.onEnd();
+        anim.onEnd = null;
+      }
+    }
+
+    // -------- actions --------
+    function doPush() {
+      if (animating) return;
+      var result = sim.push();
+      if (!result) return;
+      var path = result.path;
+      // final leg to tray
+      var trayX = result.reward ? trayRightX : trayLeftX;
+      var cfg = sim.config();
+      path.push({ x: trayX, y: trayY, row: cfg.rows + 1, col: result.finalCol, tray: result.reward });
+      startAnim(path, null);
+    }
+
+    function runAutoPush() {
+      if (autoRemaining <= 0) return;
+      doPush();
+    }
+
+    function updateCounters() {
+      var s = sim.getStats();
+      statPushes.textContent = s.pushes;
+      statRewards.textContent = s.rewards;
+      statReturns.textContent = s.returns;
+      statPayout.textContent = s.payout.toFixed(0) + "%";
+    }
+
+    btnPush.addEventListener("click", doPush);
+
+    btnAuto.addEventListener("click", function () {
+      if (animating) return;
+      autoRemaining = 20;
+      runAutoPush();
+    });
+
+    btnReset.addEventListener("click", function () {
+      if (animating) return;
+      sim.reset();
+      autoRemaining = 0;
+      updateCounters();
+      anim.path = null;
+      draw();
+    });
+
+    oddsBtns.forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (animating) return;
+        oddsBtns.forEach(function (bb) { bb.classList.remove("active"); });
+        b.classList.add("active");
+        sim.setOdds(b.getAttribute("data-odds"));
+        updateCounters();
+      });
+    });
+
+    // draw idle ball initially
+    draw();
+  })();
+</script>
+</body>
+</html>
