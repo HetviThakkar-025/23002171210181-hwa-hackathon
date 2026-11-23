@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkout — Maybe Box</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="index.html" class="brand">Maybe <span class="brand-accent">Box</span></a>
+    <nav class="nav" id="main-nav">
+      <a href="index.html" class="nav-link">Home</a>
+      <a href="product.html" class="nav-link">The Box</a>
+      <a href="how-it-works.html" class="nav-link">How it works</a>
+      <a href="order.html" class="nav-link nav-order">Order</a>
+    </nav>
+    <a href="cart.html" class="nav-cart nav-cart-active" aria-label="Cart">
+      Cart <span class="cart-count" id="cart-count">0</span>
+    </a>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Open menu">
+      <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <section class="checkout-page" aria-label="Checkout">
+    <div class="container">
+      <span class="hero-kicker">Checkout</span>
+      <h1>Place your order<span class="accent"> </span></h1>
+      <p class="demo-note">Demo order — no payment is collected. Your order will be confirmed on screen.</p>
+
+      <div id="checkout-empty" class="empty-cart" style="display:none;">
+        <p>Your cart is empty.</p>
+        <a href="product.html" class="btn btn-primary">Go to The Box</a>
+      </div>
+
+      <form id="checkout-form" style="display:none;">
+        <div class="form-grid">
+          <div class="field">
+            <label for="c-name">Name <span class="req">*</span></label>
+            <input type="text" id="c-name" name="name" required>
+          </div>
+          <div class="field">
+            <label for="c-email">Email <span class="req">*</span></label>
+            <input type="email" id="c-email" name="email" required>
+          </div>
+          <div class="field">
+            <label for="c-phone">Phone <span class="req">*</span></label>
+            <input type="tel" id="c-phone" name="phone" required>
+          </div>
+          <div class="field full">
+            <label for="c-address">Address <span class="req">*</span></label>
+            <input type="text" id="c-address" name="address" required placeholder="Street, city, postal code">
+          </div>
+        </div>
+
+        <div class="order-items" id="order-items"></div>
+
+        <div class="order-summary">
+          <div class="summary-row">
+            <span>Subtotal</span>
+            <span class="num" id="co-subtotal">$0.00</span>
+          </div>
+          <div class="summary-row">
+            <span>Shipping</span>
+            <span class="num" id="co-shipping">$0.00</span>
+          </div>
+          <div class="summary-row total">
+            <span>Total</span>
+            <span class="num" id="co-total">$0.00</span>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full" id="btn-submit">Place Order</button>
+        <div id="form-msg" class="form-msg"></div>
+      </form>
+
+      <div id="checkout-confirm" style="display:none;">
+        <div class="confirm-card">
+          <h2>Order confirmed.<span class="accent"> </span></h2>
+          <p><strong>Order ID:</strong> <span id="co-order-id">—</span></p>
+          <p><strong>Total:</strong> <span id="co-order-total">—</span></p>
+          <p>Your Maybe Box is on its way — a little chance, a lot of joy. (Demo: no payment was taken and no order is stored persistently.)</p>
+          <a href="index.html" class="btn btn-primary">Back to Home</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">Maybe <span class="brand-accent">Box</span></div>
+    <p class="footer-tagline">A little chance. A lot of joy.</p>
+    <div class="footer-nav">
+      <a href="index.html">Home</a>
+      <a href="product.html">The Box</a>
+      <a href="how-it-works.html">How it works</a>
+      <a href="order.html">Order</a>
+    </div>
+    <div class="footer-note">Battery-free. App-free. Workshop-made.</div>
+  </div>
+</footer>
+
+<script src="js/main.js"></script>
+<script>
+  (function () {
+    "use strict";
+
+    var CART_KEY = "maybe_box_cart";
+    var SHIPPING_FREE_THRESHOLD = 50;
+    var SHIPPING_FLAT = 5;
+
+    // Server-side prices (mirror api/order.js). Used for display only;
+    // the server recalculates independently and never trusts browser prices.
+    var PRICES = {
+      "maybe-box-mini": 39,
+      "maybe-box-standard": 54,
+      "spare-peg-set": 9,
+    };
+
+    var form = document.getElementById("checkout-form");
+    var emptyState = document.getElementById("checkout-empty");
+    var itemsEl = document.getElementById("order-items");
+    var coSubtotal = document.getElementById("co-subtotal");
+    var coShipping = document.getElementById("co-shipping");
+    var coTotal = document.getElementById("co-total");
+    var formMsg = document.getElementById("form-msg");
+    var btnSubmit = document.getElementById("btn-submit");
+    var confirmEl = document.getElementById("checkout-confirm");
+    var coOrderId = document.getElementById("co-order-id");
+    var coOrderTotal = document.getElementById("co-order-total");
+
+    function money(n) { return "$" + n.toFixed(2); }
+
+    function sizeOf(item) {
+      var id = (item.id || "").toLowerCase();
+      var name = (item.name || "").toLowerCase();
+      if (id.indexOf("mini") !== -1 || name.indexOf("mini") !== -1) return "Mini";
+      if (id.indexOf("standard") !== -1 || name.indexOf("standard") !== -1) return "Standard";
+      return "\u2014";
+    }
+
+    function loadCart() {
+      try { return JSON.parse(localStorage.getItem(CART_KEY) || "[]"); } catch (e) { return []; }
+    }
+
+    function render() {
+      if (window.maybeBox && typeof window.maybeBox.updateCartCount === "function") {
+        window.maybeBox.updateCartCount();
+      }
+
+      var cart = loadCart();
+      if (!cart || cart.length === 0) {
+        emptyState.style.display = "block";
+        form.style.display = "none";
+        return;
+      }
+      emptyState.style.display = "none";
+      form.style.display = "block";
+
+      itemsEl.innerHTML = "";
+      var subtotal = 0;
+      cart.forEach(function (item) {
+        var qty = item.qty || 1;
+        var price = PRICES[item.id] || item.price || 0;
+        var line = price * qty;
+        subtotal += line;
+
+        var div = document.createElement("div");
+        div.className = "cart-line";
+        div.innerHTML =
+          '<span class="line-name">' + escapeHtml(item.name) + '</span>' +
+          '<span class="line-size">' + sizeOf(item) + '</span>' +
+          '<span class="line-qty">× ' + qty + '</span>' +
+          '<span class="line-price">' + money(line) + '</span>';
+        itemsEl.appendChild(div);
+      });
+
+      var shipping = subtotal >= SHIPPING_FREE_THRESHOLD ? 0 : SHIPPING_FLAT;
+      var total = subtotal + shipping;
+      coSubtotal.textContent = money(subtotal);
+      coShipping.textContent = shipping === 0 ? "Free" : money(shipping);
+      coTotal.textContent = money(total);
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[c];
+      });
+    }
+
+    function showMsg(msg, type) {
+      formMsg.textContent = msg;
+      formMsg.className = "form-msg " + (type || "");
+      formMsg.style.display = "block";
+    }
+    function hideMsg() { formMsg.style.display = "none"; }
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      hideMsg();
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = "Submitting…";
+
+      var cart = loadCart();
+      if (!cart || cart.length === 0) {
+        showMsg("Your cart is empty.", "error");
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = "Place Order";
+        return;
+      }
+
+      var body = {
+        name: document.getElementById("c-name").value,
+        email: document.getElementById("c-email").value,
+        phone: document.getElementById("c-phone").value,
+        address: document.getElementById("c-address").value,
+        items: cart.map(function (item) {
+          return { id: item.id, qty: item.qty || 1 };
+        }),
+      };
+
+      fetch("/api/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+        .then(function (resp) {
+          return resp.json().then(function (data) { return { ok: resp.ok, status: resp.status, data: data }; });
+        })
+        .then(function (result) {
+          if (result.ok && result.data.ok) {
+            localStorage.removeItem(CART_KEY);
+            if (window.maybeBox && typeof window.maybeBox.updateCartCount === "function") {
+              window.maybeBox.updateCartCount();
+            }
+            coOrderId.textContent = result.data.order_id;
+            coOrderTotal.textContent = money(result.data.total);
+            form.style.display = "none";
+            confirmEl.style.display = "block";
+          } else {
+            var msg = result.data && result.data.error ? result.data.error : "Order could not be placed.";
+            var details = "";
+            if (result.data && result.data.details) {
+              details = "\n" + JSON.stringify(result.data.details);
+            }
+            showMsg(msg + details, "error");
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = "Place Order";
+          }
+        })
+        .catch(function () {
+          showMsg("Could not reach the order server. Please try again.", "error");
+          btnSubmit.disabled = false;
+          btnSubmit.textContent = "Place Order";
+        });
+    });
+
+    render();
+  })();
+</script>
+</body>
+</html>
