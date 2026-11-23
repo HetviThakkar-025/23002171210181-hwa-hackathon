@@ -33,3 +33,36 @@
     });
   });
 })();
+
+
+// ===== Cart (shared across pages) =====
+(function () {
+  "use strict";
+  var CART_KEY = "maybe_box_cart";
+  function loadCart() {
+    try { return JSON.parse(localStorage.getItem(CART_KEY) || "[]"); } catch (e) { return []; }
+  }
+  function saveCart(cart) {
+    try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {}
+  }
+  function addToCart(id, name, price, qty) {
+    if (!qty || qty < 1) return;
+    var cart = loadCart();
+    var existing = cart.find(function (i) { return i.id === id; });
+    if (existing) { existing.qty += qty; } else { cart.push({ id: id, name: name, price: price, qty: qty }); }
+    saveCart(cart);
+  }
+  function getCartCount() {
+    var cart = loadCart();
+    return cart.reduce(function (sum, i) { return sum + (i.qty || 0); }, 0);
+  }
+  function updateCartCount() {
+    var count = getCartCount();
+    document.querySelectorAll(".cart-count").forEach(function (el) { el.textContent = count; });
+  }
+  window.maybeBox = window.maybeBox || {};
+  window.maybeBox.addToCart = addToCart;
+  window.maybeBox.getCartCount = getCartCount;
+  window.maybeBox.updateCartCount = updateCartCount;
+  updateCartCount();
+})();
